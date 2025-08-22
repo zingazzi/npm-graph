@@ -2,7 +2,7 @@
   "name": "node-module-map",
   "displayName": "Node Module Map",
   "description": "Interactive visualization of npm dependency trees with multi-repo support, conflict detection, and security insights",
-  "version": "0.5.0",
+  "version": "0.1.0",
   "publisher": "marcozingoni",
   "icon": "icon.png",
   "repository": {

@@ -4,6 +4,7 @@
   "description": "Interactive visualization of npm dependency trees with multi-repo support, conflict detection, and security insights",
   "version": "0.0.1",
   "publisher": "marcozingoni",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/marcozingoni/node-module-map.git"
@@ -35,13 +36,13 @@
         "command": "node-module-map.showDependencyGraph",
         "title": "Node Module Map: Show Dependency Graph",
         "category": "Node Module Map",
-        "icon": "$(graph)"
+        "icon": "icon.png"
       },
       {
         "command": "node-module-map.analyzeDependencies",
         "title": "Node Module Map: Analyze Dependencies",
         "category": "Node Module Map",
-        "icon": "$(search)"
+        "icon": "icon.png"
       }
     ],
     "views": {
@@ -59,7 +60,7 @@
         {
           "id": "nodeModuleMap",
           "title": "Node Module Map",
-          "icon": "$(graph)"
+          "icon": "icon.png"
         }
       ]
     },

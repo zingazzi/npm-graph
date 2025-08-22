@@ -79,10 +79,29 @@ export class Utils {
 
   /**
    * Compare two semantic versions
+   * Returns: 1 if version1 > version2, 2 if version1 < version2, 0 if equal
    */
   static compareVersions(version1: string, version2: string): number {
-    const v1Parts = version1.split('.').map(Number);
-    const v2Parts = version2.split('.').map(Number);
+    // Handle pre-release versions (e.g., 1.0.0-alpha vs 1.0.0)
+    const v1 = version1.replace(/^v/, '');
+    const v2 = version2.replace(/^v/, '');
+
+    // If one has pre-release and the other doesn't, the one without pre-release is greater
+    const v1HasPreRelease = v1.includes('-');
+    const v2HasPreRelease = v2.includes('-');
+
+    if (v1HasPreRelease && !v2HasPreRelease) return 2;
+    if (!v1HasPreRelease && v2HasPreRelease) return 1;
+
+    // If both have pre-release or both don't, compare numerically
+    const v1Parts = v1.split('.').map(part => {
+      const numPart = part.split('-')[0]; // Remove pre-release part for numeric comparison
+      return parseInt(numPart, 10) || 0;
+    });
+    const v2Parts = v2.split('.').map(part => {
+      const numPart = part.split('-')[0]; // Remove pre-release part for numeric comparison
+      return parseInt(numPart, 10) || 0;
+    });
 
     const maxLength = Math.max(v1Parts.length, v2Parts.length);
 
@@ -101,7 +120,7 @@ export class Utils {
    * Check if a version is outdated compared to another
    */
   static isVersionOutdated(current: string, latest: string): boolean {
-    return this.compareVersions(current, latest) < 0;
+    return this.compareVersions(current, latest) === 2;
   }
 
   /**

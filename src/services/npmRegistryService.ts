@@ -179,7 +179,7 @@ export class NpmRegistryService {
       const num2 = v2[i] || 0;
 
       if (num1 > num2) return 1;
-      if (num1 < num2) return -1;
+      if (num1 < num2) return 2;
     }
 
     return 0;

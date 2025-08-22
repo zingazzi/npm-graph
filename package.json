@@ -1,0 +1,113 @@
+{
+  "name": "npm-graph",
+  "displayName": "Node Module Map",
+  "description": "Interactive visualization of npm dependency trees with multi-repo support, conflict detection, and security insights",
+  "version": "0.0.1",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization",
+    "Dependency Management"
+  ],
+  "keywords": [
+    "npm",
+    "dependencies",
+    "graph",
+    "visualization",
+    "package.json",
+    "monorepo",
+    "security"
+  ],
+  "activationEvents": [
+    "onCommand:npm-graph.showDependencyGraph",
+    "onCommand:npm-graph.analyzeDependencies"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "npm-graph.showDependencyGraph",
+        "title": "Node Module Map: Show Dependency Graph",
+        "category": "Node Module Map",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "npm-graph.analyzeDependencies",
+        "title": "Node Module Map: Analyze Dependencies",
+        "category": "Node Module Map",
+        "icon": "$(search)"
+      }
+    ],
+    "views": {
+      "nodeModuleMap": [
+        {
+          "type": "webview",
+          "id": "npm-graph.dependencyGraph",
+          "name": "Dependency Graph",
+          "when": "workspaceHasNpmFiles"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "nodeModuleMap",
+          "title": "Node Module Map",
+          "icon": "$(graph)"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "npm-graph.showDependencyGraph",
+          "when": "workspaceHasNpmFiles"
+        },
+        {
+          "command": "npm-graph.analyzeDependencies",
+          "when": "workspaceHasNpmFiles"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "npm-graph.showDependencyGraph",
+          "when": "view == npm-graph.dependencyGraph",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./ && tsc -p ./tsconfig.webview.json",
+    "watch": "tsc -watch -p ./ & tsc -watch -p ./tsconfig.webview.json",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "build": "npm run compile",
+    "dev": "npm run watch",
+    "compile:webview": "tsc -p ./tsconfig.webview.json",
+    "compile:extension": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.103.0",
+    "@typescript-eslint/eslint-plugin": "^8.39.0",
+    "@typescript-eslint/parser": "^8.39.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "d3": "^7.8.5"
+  },
+  "author": "",
+  "license": "ISC",
+  "types": "./out/extension.d.ts"
+}

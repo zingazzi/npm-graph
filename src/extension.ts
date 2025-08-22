@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register commands
   const showDependencyGraph = vscode.commands.registerCommand(
-    'npm-graph.showDependencyGraph',
+    'node-module-map.showDependencyGraph',
     async () => {
       try {
         await showDependencyGraphCommand(dependencyGraphProvider);
@@ -37,7 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const analyzeDependencies = vscode.commands.registerCommand(
-    'npm-graph.analyzeDependencies',
+    'node-module-map.analyzeDependencies',
     async () => {
       try {
         await analyzeDependenciesCommand();

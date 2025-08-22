@@ -1,11 +1,15 @@
 {
-  "name": "npm-graph",
+  "name": "node-module-map",
   "displayName": "Node Module Map",
   "description": "Interactive visualization of npm dependency trees with multi-repo support, conflict detection, and security insights",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "publisher": "marcozingoni",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marcozingoni/node-module-map.git"
+  },
   "engines": {
-    "vscode": "^1.103.0"
+    "vscode": "^1.99.0"
   },
   "categories": [
     "Other",
@@ -22,20 +26,20 @@
     "security"
   ],
   "activationEvents": [
-    "onCommand:npm-graph.showDependencyGraph",
-    "onCommand:npm-graph.analyzeDependencies"
+    "onCommand:node-module-map.showDependencyGraph",
+    "onCommand:node-module-map.analyzeDependencies"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "npm-graph.showDependencyGraph",
+        "command": "node-module-map.showDependencyGraph",
         "title": "Node Module Map: Show Dependency Graph",
         "category": "Node Module Map",
         "icon": "$(graph)"
       },
       {
-        "command": "npm-graph.analyzeDependencies",
+        "command": "node-module-map.analyzeDependencies",
         "title": "Node Module Map: Analyze Dependencies",
         "category": "Node Module Map",
         "icon": "$(search)"
@@ -45,7 +49,7 @@
       "nodeModuleMap": [
         {
           "type": "webview",
-          "id": "npm-graph.dependencyGraph",
+          "id": "node-module-map.dependencyGraph",
           "name": "Dependency Graph",
           "when": "workspaceHasNpmFiles"
         }
@@ -60,25 +64,25 @@
         }
       ]
     },
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "npm-graph.showDependencyGraph",
-          "when": "workspaceHasNpmFiles"
-        },
-        {
-          "command": "npm-graph.analyzeDependencies",
-          "when": "workspaceHasNpmFiles"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "npm-graph.showDependencyGraph",
-          "when": "view == npm-graph.dependencyGraph",
-          "group": "navigation"
-        }
-      ]
-    }
+          "menus": {
+        "commandPalette": [
+          {
+            "command": "node-module-map.showDependencyGraph",
+            "when": "workspaceHasNpmFiles"
+          },
+          {
+            "command": "node-module-map.analyzeDependencies",
+            "when": "workspaceHasNpmFiles"
+          }
+        ],
+        "view/title": [
+          {
+            "command": "node-module-map.showDependencyGraph",
+            "when": "view == node-module-map.dependencyGraph",
+            "group": "navigation"
+          }
+        ]
+      }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -90,24 +94,27 @@
     "build": "npm run compile",
     "dev": "npm run watch",
     "compile:webview": "tsc -p ./tsconfig.webview.json",
-    "compile:extension": "tsc -p ./"
+    "compile:extension": "tsc -p ./",
+    "package": "npx @vscode/vsce package",
+    "install-extension": "npx @vscode/vsce install"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.103.0",
+    "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.6.0",
     "eslint": "^9.32.0",
     "typescript": "^5.9.2"
   },
   "dependencies": {
     "d3": "^7.8.5"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Marco Zingoni",
+  "license": "MIT",
   "types": "./out/extension.d.ts"
 }

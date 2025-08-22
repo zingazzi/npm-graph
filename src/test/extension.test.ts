@@ -8,7 +8,7 @@ suite('Node Module Map Extension Test Suite', () => {
 
   test('Extension should be present', () => {
     // The extension ID is based on the package.json name
-    const ext = vscode.extensions.getExtension('npm-graph');
+    const ext = vscode.extensions.getExtension('node-module-map');
     if (ext) {
       assert.ok(ext);
     } else {
@@ -18,7 +18,7 @@ suite('Node Module Map Extension Test Suite', () => {
   });
 
   test('Should activate', async () => {
-    const ext = vscode.extensions.getExtension('npm-graph');
+    const ext = vscode.extensions.getExtension('node-module-map');
     if (ext) {
       await ext.activate();
       assert.ok(true);

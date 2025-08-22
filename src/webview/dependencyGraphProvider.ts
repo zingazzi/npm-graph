@@ -5,7 +5,7 @@ import { DependencyGraph } from '../types';
  * Webview provider for dependency graph visualization
  */
 export class DependencyGraphProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'npm-graph.dependencyGraph';
+  public static readonly viewType = 'node-module-map.dependencyGraph';
 
   private _disposables: vscode.Disposable[] = [];
   private _view?: vscode.WebviewView;
@@ -170,7 +170,7 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
   private _handleRefresh() {
     console.log('Refresh requested from webview');
     // This will trigger a new dependency scan
-    vscode.commands.executeCommand('npm-graph.showDependencyGraph');
+    vscode.commands.executeCommand('node-module-map.showDependencyGraph');
   }
 
   /**

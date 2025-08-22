@@ -16,13 +16,24 @@ interface LegacyDependency {
   dependencies?: Record<string, LegacyDependency>;
 }
 
+interface ScanOptions {
+  maxDepth?: number;
+  includeDevDependencies?: boolean;
+  includePeerDependencies?: boolean;
+  includeOptionalDependencies?: boolean;
+  enableVersionChecking?: boolean;
+}
+
 /**
  * Service for scanning and parsing npm dependencies
  */
 export class DependencyScanner {
   private static instance: DependencyScanner;
+  private npmRegistry: NpmRegistryService;
 
-  private constructor() {}
+  private constructor() {
+    this.npmRegistry = NpmRegistryService.getInstance();
+  }
 
   static getInstance(): DependencyScanner {
     if (!DependencyScanner.instance) {
@@ -32,10 +43,10 @@ export class DependencyScanner {
   }
 
   /**
-   * Scan the entire workspace for dependencies
+   * Scan the entire workspace for dependencies with configurable options
    */
-  async scanWorkspace(): Promise<DependencyGraph> {
-    console.log('Starting workspace dependency scan...');
+  async scanWorkspace(options: ScanOptions = {}): Promise<DependencyGraph> {
+    console.log('Starting workspace dependency scan...', options);
 
     const startTime = Date.now();
     const workspaceRoots = Utils.getWorkspaceRoots();
@@ -48,14 +59,14 @@ export class DependencyScanner {
 
     // Scan each workspace root
     for (const root of workspaceRoots) {
-      const workspaceInfo = await this.scanWorkspaceRoot(root);
+      const workspaceInfo = await this.scanWorkspaceRoot(root, options);
       if (workspaceInfo) {
         workspaces.push(workspaceInfo);
       }
     }
 
     // Build the complete dependency graph
-    const graph = await this.buildDependencyGraph(workspaces);
+    const graph = await this.buildDependencyGraph(workspaces, options);
 
     const scanTime = Date.now() - startTime;
     console.log(`Workspace scan completed in ${scanTime}ms`);
@@ -66,7 +77,10 @@ export class DependencyScanner {
   /**
    * Scan a single workspace root for dependencies
    */
-  private async scanWorkspaceRoot(rootPath: string): Promise<WorkspaceInfo | null> {
+  private async scanWorkspaceRoot(
+    rootPath: string,
+    options: ScanOptions = {}
+  ): Promise<WorkspaceInfo | null> {
     try {
       const packageJsonPath = path.join(rootPath, 'package.json');
       const packageLockPath = path.join(rootPath, 'package-lock.json');
@@ -87,11 +101,12 @@ export class DependencyScanner {
         }
       }
 
-      // Parse dependencies
-      const dependencies = await this.parseDependencies(
+      // Parse dependencies with depth control
+      const dependencies = await this.parseDependenciesWithDepth(
         packageJson,
         packageLockJson,
-        rootPath
+        rootPath,
+        options
       );
 
       return {
@@ -108,22 +123,31 @@ export class DependencyScanner {
   }
 
   /**
-   * Parse dependencies from package.json and package-lock.json
+   * Parse dependencies with depth control and transitive dependency resolution
    */
-  private async parseDependencies(
+  private async parseDependenciesWithDepth(
     packageJson: PackageJson,
     packageLockJson: PackageLockJson | undefined,
-    sourcePath: string
+    sourcePath: string,
+    options: ScanOptions
   ): Promise<DependencyNode[]> {
     const dependencies: DependencyNode[] = [];
+    const maxDepth = options.maxDepth || 3;
+    const includeDevDeps = options.includeDevDependencies !== false;
+    const includePeerDeps = options.includePeerDependencies !== false;
+    const includeOptionalDeps = options.includeOptionalDependencies !== false;
+
     const dependencyTypes = [
-      { key: 'dependencies', type: 'dependency' as const },
-      { key: 'devDependencies', type: 'devDependency' as const },
-      { key: 'peerDependencies', type: 'peerDependency' as const },
-      { key: 'optionalDependencies', type: 'optionalDependency' as const }
+      { key: 'dependencies', type: 'dependency' as const, include: true },
+      { key: 'devDependencies', type: 'devDependency' as const, include: includeDevDeps },
+      { key: 'peerDependencies', type: 'peerDependency' as const, include: includePeerDeps },
+      { key: 'optionalDependencies', type: 'optionalDependency' as const, include: includeOptionalDeps }
     ];
 
-    for (const { key, type } of dependencyTypes) {
+    // Process direct dependencies
+    for (const { key, type, include } of dependencyTypes) {
+      if (!include) continue;
+
       const deps = packageJson[key as keyof PackageJson] as Record<string, string> | undefined;
       if (deps) {
         for (const [name, version] of Object.entries(deps)) {
@@ -132,7 +156,9 @@ export class DependencyScanner {
             version,
             type,
             sourcePath,
-            packageLockJson
+            packageLockJson,
+            0, // depth 0 for direct dependencies
+            options
           );
           if (dependency) {
             dependencies.push(dependency);
@@ -141,23 +167,127 @@ export class DependencyScanner {
       }
     }
 
+    // Process transitive dependencies if depth > 1
+    if (maxDepth > 1 && packageLockJson) {
+      await this.processTransitiveDependencies(
+        dependencies,
+        packageLockJson,
+        sourcePath,
+        1, // start at depth 1
+        maxDepth,
+        options
+      );
+    }
+
     return dependencies;
   }
 
   /**
-   * Create a dependency node with metadata
+   * Process transitive dependencies recursively
+   */
+  private async processTransitiveDependencies(
+    allDependencies: DependencyNode[],
+    packageLockJson: PackageLockJson,
+    sourcePath: string,
+    currentDepth: number,
+    maxDepth: number,
+    options: ScanOptions
+  ): Promise<void> {
+    if (currentDepth >= maxDepth) return;
+
+    const processedPackages = new Set<string>();
+
+    // Process each dependency at current depth
+    for (const dep of allDependencies) {
+      if (dep.depth === currentDepth - 1) {
+        const transitiveDeps = this.findTransitiveDependencies(dep.name, packageLockJson);
+
+        for (const [name, version] of Object.entries(transitiveDeps)) {
+          const depId = Utils.generateDependencyId(name, version, sourcePath);
+
+          // Skip if already processed
+          if (processedPackages.has(depId)) continue;
+          processedPackages.add(depId);
+
+          // Check if node already exists
+          const existingNode = allDependencies.find(n => n.id === depId);
+          if (!existingNode) {
+            const transitiveDep = await this.createDependencyNode(
+              name,
+              version,
+              'dependency', // transitive deps are treated as regular dependencies
+              sourcePath,
+              packageLockJson,
+              currentDepth,
+              options
+            );
+            if (transitiveDep) {
+              allDependencies.push(transitiveDep);
+            }
+          }
+        }
+      }
+    }
+
+    // Recursively process next depth level
+    if (currentDepth + 1 < maxDepth) {
+      await this.processTransitiveDependencies(
+        allDependencies,
+        packageLockJson,
+        sourcePath,
+        currentDepth + 1,
+        maxDepth,
+        options
+      );
+    }
+  }
+
+  /**
+   * Find transitive dependencies for a package
+   */
+  private findTransitiveDependencies(
+    packageName: string,
+    packageLockJson: PackageLockJson
+  ): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    // Search in packages section (npm v7+)
+    if (packageLockJson.packages) {
+      for (const [, pkgInfo] of Object.entries(packageLockJson.packages)) {
+        if (pkgInfo.name === packageName && pkgInfo.dependencies) {
+          Object.assign(result, pkgInfo.dependencies);
+        }
+      }
+    }
+
+    // Search in dependencies section (legacy)
+    if (packageLockJson.dependencies) {
+      const dep = packageLockJson.dependencies[packageName];
+      if (dep && dep.dependencies) {
+        Object.assign(result, dep.dependencies);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Create a dependency node with enhanced metadata and status detection
    */
   private async createDependencyNode(
     name: string,
     version: string,
     type: DependencyNode['type'],
     sourcePath: string,
-    packageLockJson?: PackageLockJson
+    packageLockJson?: PackageLockJson,
+    depth: number = 0,
+    options: ScanOptions = {}
   ): Promise<DependencyNode | null> {
     try {
       // Get actual installed version from package-lock.json if available
       let actualVersion = version;
       let status: DependencyNode['status'] = 'up-to-date';
+      let latestVersion: string | undefined;
 
       if (packageLockJson) {
         const lockInfo = this.findPackageInLockFile(name, packageLockJson);
@@ -166,31 +296,87 @@ export class DependencyScanner {
         }
       }
 
+      // Check for version issues if enabled
+      if (options.enableVersionChecking !== false) {
+        try {
+          const packageInfo = await this.npmRegistry.getPackageInfo(name);
+          if (packageInfo) {
+            latestVersion = packageInfo['dist-tags']?.latest;
+            status = this.determinePackageStatus(version, actualVersion, latestVersion);
+          }
+        } catch (error) {
+          console.warn(`Could not check version for ${name}:`, error);
+        }
+      }
+
       // Generate unique ID
       const id = Utils.generateDependencyId(name, actualVersion, sourcePath);
-
-      // Determine status (basic implementation - will be enhanced later)
-      if (version.startsWith('^') || version.startsWith('~')) {
-        status = 'up-to-date'; // Will be enhanced with version checking
-      }
 
       return {
         id,
         name,
         version: actualVersion,
+        latestVersion,
         type,
         status,
         source: sourcePath,
-        depth: 0, // Will be calculated during graph building
-        size: 20, // Default size for visualization
+        depth,
+        size: this.calculateNodeSize(depth, type),
         color: Utils.getStatusColor(status),
         metadata: {
-          // Will be populated with npm registry data later
+          // Will be populated with npm registry data
         }
       };
     } catch (error) {
       console.error(`Error creating dependency node for ${name}:`, error);
       return null;
+    }
+  }
+
+  /**
+   * Determine package status based on version comparison
+   */
+  private determinePackageStatus(
+    requiredVersion: string,
+    actualVersion: string,
+    latestVersion?: string
+  ): DependencyNode['status'] {
+    // Check for version conflicts
+    if (requiredVersion !== actualVersion) {
+      return 'conflict';
+    }
+
+    // Check if outdated
+    if (latestVersion && Utils.compareVersions(actualVersion, latestVersion) < 0) {
+      return 'outdated';
+    }
+
+    return 'up-to-date';
+  }
+
+  /**
+   * Calculate node size based on depth and type
+   */
+  private calculateNodeSize(depth: number, type: DependencyNode['type']): number {
+    let baseSize = 20;
+
+    // Adjust size based on depth (deeper = smaller)
+    if (depth > 0) {
+      baseSize = Math.max(12, baseSize - (depth * 2));
+    }
+
+    // Adjust size based on type
+    switch (type) {
+      case 'dependency':
+        return baseSize;
+      case 'devDependency':
+        return baseSize * 0.8;
+      case 'peerDependency':
+        return baseSize * 0.9;
+      case 'optionalDependency':
+        return baseSize * 0.7;
+      default:
+        return baseSize;
     }
   }
 
@@ -220,7 +406,7 @@ export class DependencyScanner {
     /**
    * Build the complete dependency graph from workspace information
    */
-  private async buildDependencyGraph(workspaces: WorkspaceInfo[]): Promise<DependencyGraph> {
+  private async buildDependencyGraph(workspaces: WorkspaceInfo[], options: ScanOptions): Promise<DependencyGraph> {
     const allNodes: DependencyNode[] = [];
     const allEdges: DependencyEdge[] = [];
 
@@ -238,7 +424,8 @@ export class DependencyScanner {
         const workspaceEdges = await this.buildEdgesFromPackageLock(
           workspace.packageLockJson,
           workspace.root,
-          workspaceNodes
+          workspaceNodes,
+          options
         );
         allEdges.push(...workspaceEdges);
       } else {
@@ -284,7 +471,8 @@ export class DependencyScanner {
   private async buildEdgesFromPackageLock(
     packageLockJson: PackageLockJson,
     _sourcePath: string,
-    workspaceNodes: DependencyNode[]
+    workspaceNodes: DependencyNode[],
+    options: ScanOptions
   ): Promise<DependencyEdge[]> {
     const edges: DependencyEdge[] = [];
 
@@ -317,7 +505,7 @@ export class DependencyScanner {
 
     // Process legacy dependencies section
     if (packageLockJson.dependencies) {
-      await this.processLegacyDependencies(packageLockJson.dependencies, edges, workspaceNodes);
+      await this.processLegacyDependencies(packageLockJson.dependencies, edges, workspaceNodes, options);
     }
 
     return edges;
@@ -330,16 +518,17 @@ export class DependencyScanner {
     dependencies: Record<string, LegacyDependency>,
     edges: DependencyEdge[],
     workspaceNodes: DependencyNode[],
-    parentName?: string
+    options: ScanOptions
   ): Promise<void> {
     for (const [depName, depInfo] of Object.entries(dependencies)) {
-      const sourceNode = parentName ? workspaceNodes.find(n => n.name === parentName) : null;
       const targetNode = workspaceNodes.find(n => n.name === depName);
 
-      if (sourceNode && targetNode) {
+      if (targetNode) {
+        // For legacy dependencies, we don't have a direct source node
+        // These are typically transitive dependencies
         edges.push({
-          id: `${sourceNode.id}->${targetNode.id}`,
-          source: sourceNode.id,
+          id: `legacy-${depName}`,
+          source: 'legacy-root',
           target: targetNode.id,
           type: 'transitive',
           version: depInfo.version,
@@ -350,7 +539,7 @@ export class DependencyScanner {
 
       // Recursively process nested dependencies
       if (depInfo.dependencies) {
-        await this.processLegacyDependencies(depInfo.dependencies, edges, workspaceNodes, depName);
+        await this.processLegacyDependencies(depInfo.dependencies, edges, workspaceNodes, options);
       }
     }
   }

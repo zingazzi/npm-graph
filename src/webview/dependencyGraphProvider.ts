@@ -53,87 +53,168 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
   /**
    * Get HTML content for the webview
    */
-  private _getHtmlForWebview(webview: vscode.Webview) {
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'compiled', 'webview.js')
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'compiled', 'webview.css')
-    );
+  private _getHtmlForWebview(webview: vscode.Webview): string {
+    const webviewUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'src', 'webview'));
 
     return `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Node Module Map</title>
-        <link rel="stylesheet" type="text/css" href="${styleUri}">
-    </head>
-    <body>
-        <div id="app">
-            <div class="header">
-                <h1>Node Module Map</h1>
-                <div class="controls">
-                    <button id="refresh-btn">Refresh</button>
-                    <button id="export-btn">Export</button>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node Module Map - Dependency Graph</title>
+    <link rel="stylesheet" href="${webviewUri}/webview.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Node Module Map</h1>
+            <div class="header-controls">
+                <button id="refresh-btn" class="btn btn-primary">
+                    <span class="icon">$(refresh)</span>
+                    Refresh
+                </button>
+                <button id="export-btn" class="btn btn-secondary">
+                    <span class="icon">$(export)</span>
+                    Export
+                </button>
+            </div>
+        </header>
+
+        <div class="controls-panel">
+            <div class="control-group">
+                <label for="depth-slider">Dependency Depth:</label>
+                <div class="depth-control">
+                    <input type="range" id="depth-slider" min="1" max="5" value="3" class="depth-slider">
+                    <span id="depth-label" class="depth-label">Depth: 3</span>
                 </div>
             </div>
 
-            <div class="filters">
-                <input type="text" id="search-input" placeholder="Search packages...">
+            <div class="control-group">
+                <label>Dependency Types:</label>
                 <div class="filter-toggles">
-                    <label><input type="checkbox" id="show-deps" checked> Dependencies</label>
-                    <label><input type="checkbox" id="show-dev-deps" checked> Dev Dependencies</label>
-                    <label><input type="checkbox" id="show-peer-deps"> Peer Dependencies</label>
-                    <label><input type="checkbox" id="show-optional-deps"> Optional Dependencies</label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="showDevDependencies" checked>
+                        Dev Dependencies
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="showPeerDependencies" checked>
+                        Peer Dependencies
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="showOptionalDependencies" checked>
+                        Optional Dependencies
+                    </label>
                 </div>
             </div>
 
+            <div class="control-group">
+                <label>Status Filters:</label>
+                <div class="filter-toggles">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="showOutdated" checked>
+                        Show Outdated
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="showConflicts" checked>
+                        Show Conflicts
+                    </label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="search-input">Search:</label>
+                <input type="text" id="search-input" placeholder="Search packages or versions..." class="search-input">
+            </div>
+        </div>
+
+        <div class="main-content">
             <div class="graph-container">
-                <div id="graph-canvas"></div>
-                <div id="loading" class="loading">Loading dependency graph...</div>
+                <div id="dependency-graph" class="dependency-graph"></div>
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Analyzing dependencies...</p>
+                </div>
                 <div id="no-data" class="no-data" style="display: none;">
-                    No dependencies found. Make sure you have package.json files in your workspace.
+                    <p>No dependencies found in this workspace.</p>
+                    <p>Make sure you have a package.json file in your workspace root.</p>
                 </div>
             </div>
 
             <div class="sidebar">
-                <div class="stats">
+                <div class="sidebar-section">
                     <h3>Statistics</h3>
-                    <div id="stats-content">
+                    <div id="statistics" class="statistics">
                         <div class="stat-item">
                             <span class="stat-label">Total Packages:</span>
-                            <span class="stat-value" id="total-packages">-</span>
+                            <span class="stat-value">-</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Dependencies:</span>
-                            <span class="stat-value" id="total-deps">-</span>
+                            <span class="stat-value">-</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Conflicts:</span>
-                            <span class="stat-value" id="conflicts">-</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Vulnerabilities:</span>
-                            <span class="stat-value" id="vulnerabilities">-</span>
+                            <span class="stat-value conflict">-</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Outdated:</span>
-                            <span class="stat-value" id="outdated">-</span>
+                            <span class="stat-value outdated">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Vulnerabilities:</span>
+                            <span class="stat-value vulnerable">-</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="package-info" id="package-info" style="display: none;">
-                    <h3>Package Information</h3>
-                    <div id="package-details"></div>
+                <div class="sidebar-section">
+                    <h3>Legend</h3>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #4CAF50;"></span>
+                            <span>Up to Date</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #FF9800;"></span>
+                            <span>Outdated</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #F44336;"></span>
+                            <span>Conflict</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #9C27B0;"></span>
+                            <span>Vulnerable</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #2196F3;"></span>
+                            <span>Dev Dependency</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #FF5722;"></span>
+                            <span>Peer Dependency</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Package Info</h3>
+                    <div id="package-info" class="package-info" style="display: none;">
+                        <div id="package-details"></div>
+                    </div>
+                    <div class="no-selection">
+                        <p>Click on a node or edge to see details</p>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <script src="${scriptUri}"></script>
-    </body>
-    </html>`;
+    <div id="tooltip" class="tooltip" style="display: none;"></div>
+
+    <script src="${webviewUri}/webview.js"></script>
+</body>
+</html>`;
   }
 
   /**

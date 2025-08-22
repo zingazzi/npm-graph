@@ -2,9 +2,9 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { DependencyScanner } from './services/dependencyScanner';
-import { Utils } from './utils';
-import { DependencyGraph } from './types';
 import { DependencyGraphProvider } from './webview/dependencyGraphProvider';
+
+let dependencyGraphProvider: DependencyGraphProvider;
 
 /**
  * Main extension entry point
@@ -12,13 +12,13 @@ import { DependencyGraphProvider } from './webview/dependencyGraphProvider';
 export function activate(context: vscode.ExtensionContext) {
   console.log('Node Module Map extension is now active!');
 
-  // Create webview provider
-  const dependencyGraphProvider = new DependencyGraphProvider(context.extensionUri);
+  // Create dependency graph provider
+  dependencyGraphProvider = new DependencyGraphProvider(context.extensionUri);
 
-  // Register webview provider
+  // Register webview view provider
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
-      DependencyGraphProvider.viewType,
+      'node-module-map.dependencyGraph',
       dependencyGraphProvider
     )
   );
@@ -48,137 +48,121 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Add commands to subscriptions
   context.subscriptions.push(showDependencyGraph, analyzeDependencies);
-
-  // Register workspace context key for when clauses
-  updateWorkspaceContext();
-
-  // Listen for workspace changes
-  vscode.workspace.onDidChangeWorkspaceFolders(() => {
-    updateWorkspaceContext();
-  });
 }
 
 /**
  * Show dependency graph command implementation
  */
 async function showDependencyGraphCommand(webviewProvider: DependencyGraphProvider) {
-  // Check if workspace has npm files
-  if (!(await Utils.hasNpmFiles())) {
-    vscode.window.showWarningMessage('No npm projects found in the current workspace.');
-    return;
-  }
+  const progressOptions = {
+    location: vscode.ProgressLocation.Notification,
+    title: 'Analyzing dependencies...',
+    cancellable: false
+  };
 
-  // Show progress indicator
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'Scanning dependencies...',
-      cancellable: false
-    },
-    async (progress) => {
-      progress.report({ increment: 0 });
+  await vscode.window.withProgress(progressOptions, async (progress) => {
+    progress.report({ message: 'Scanning workspace for package.json files...' });
 
-      // Scan dependencies
+    try {
       const scanner = DependencyScanner.getInstance();
-      const graph = await scanner.scanWorkspace();
 
-      progress.report({ increment: 75 });
+      // Scan with default options (can be enhanced with user preferences later)
+      const graph = await scanner.scanWorkspace({
+        maxDepth: 3,
+        includeDevDependencies: true,
+        includePeerDependencies: true,
+        includeOptionalDependencies: true,
+        enableVersionChecking: true
+      });
 
-      // Update webview with real data
+      progress.report({ message: 'Updating visualization...' });
+
+      // Update the webview with the graph data
       webviewProvider.updateGraph(graph);
 
-      // Show webview panel
-      vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap');
+      // Show the dependency graph view
+      await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap');
 
-      progress.report({ increment: 100 });
+      vscode.window.showInformationMessage(
+        `Dependency graph generated: ${graph.nodes.length} packages, ${graph.edges.length} dependencies`
+      );
 
-      // Show summary message
-      await showDependencyGraphResults(graph);
+    } catch (error) {
+      console.error('Error scanning dependencies:', error);
+      vscode.window.showErrorMessage(
+        'Failed to scan dependencies. Make sure you have package.json files in your workspace.'
+      );
     }
-  );
+  });
 }
 
 /**
  * Analyze dependencies command implementation
  */
 async function analyzeDependenciesCommand() {
-  // Check if workspace has npm files
-  if (!(await Utils.hasNpmFiles())) {
-    vscode.window.showWarningMessage('No npm projects found in the current workspace.');
-    return;
-  }
+  const progressOptions = {
+    location: vscode.ProgressLocation.Notification,
+    title: 'Analyzing dependencies...',
+    cancellable: false
+  };
 
-  // Show progress indicator
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'Analyzing dependencies...',
-      cancellable: false
-    },
-    async (progress) => {
-      progress.report({ increment: 0 });
+  await vscode.window.withProgress(progressOptions, async (progress) => {
+    progress.report({ message: 'Scanning dependencies for issues...' });
 
-            // Scan dependencies
+    try {
       const scanner = DependencyScanner.getInstance();
-      const graph = await scanner.scanWorkspace();
+      const graph = await scanner.scanWorkspace({
+        maxDepth: 5, // Deeper scan for analysis
+        includeDevDependencies: true,
+        includePeerDependencies: true,
+        includeOptionalDependencies: true,
+        enableVersionChecking: true
+      });
 
-      progress.report({ increment: 50 });
+      progress.report({ message: 'Generating analysis report...' });
+
+      // Count issues
+      const outdated = graph.nodes.filter(n => n.status === 'outdated').length;
+      const conflicts = graph.nodes.filter(n => n.status === 'conflict').length;
+      const vulnerable = graph.nodes.filter(n => n.status === 'vulnerable').length;
 
       // Show analysis results
-      await showDependencyAnalysis(graph);
+      let message = `Analysis complete:\n`;
+      message += `• Total packages: ${graph.nodes.length}\n`;
+      message += `• Total dependencies: ${graph.edges.length}\n`;
 
-      progress.report({ increment: 100 });
+      if (outdated > 0) {
+        message += `• ⚠️  ${outdated} outdated packages\n`;
+      }
+      if (conflicts > 0) {
+        message += `• ❌ ${conflicts} version conflicts\n`;
+      }
+      if (vulnerable > 0) {
+        message += `• 🚨 ${vulnerable} vulnerable packages\n`;
+      }
+
+      if (outdated === 0 && conflicts === 0 && vulnerable === 0) {
+        message += `• ✅ All packages are up to date!`;
+      }
+
+      vscode.window.showInformationMessage(message);
+
+      // Also update the graph view if it's open
+      if (dependencyGraphProvider) {
+        dependencyGraphProvider.updateGraph(graph);
+      }
+
+    } catch (error) {
+      console.error('Error analyzing dependencies:', error);
+      vscode.window.showErrorMessage('Failed to analyze dependencies. See console for details.');
     }
-  );
-}
-
-/**
- * Show dependency graph results
- */
-async function showDependencyGraphResults(graph: DependencyGraph) {
-  // For now, show a simple message with basic info
-  // This will be replaced with the actual graph visualization webview
-  const message = `Dependency scan completed!\n\n` +
-    `📦 Total packages: ${graph.metadata.totalPackages}\n` +
-    `🔗 Total dependencies: ${graph.metadata.totalDependencies}\n` +
-    `⚠️  Conflicts: ${graph.metadata.conflicts}\n` +
-    `🔒 Vulnerabilities: ${graph.metadata.vulnerabilities}\n` +
-    `🔄 Outdated: ${graph.metadata.outdated}\n\n` +
-    `Graph visualization coming soon!`;
-
-  vscode.window.showInformationMessage(message);
-}
-
-/**
- * Show dependency analysis results
- */
-async function showDependencyAnalysis(graph: DependencyGraph) {
-  // For now, show a simple message with analysis info
-  // This will be replaced with a detailed analysis panel
-  const message = `Dependency analysis completed!\n\n` +
-    `📊 Analysis Summary:\n` +
-    `• ${graph.metadata.totalPackages} packages analyzed\n` +
-    `• ${graph.metadata.conflicts} version conflicts detected\n` +
-    `• ${graph.metadata.vulnerabilities} security vulnerabilities found\n` +
-    `• ${graph.metadata.outdated} packages have updates available\n\n` +
-    `Detailed analysis panel coming soon!`;
-
-  vscode.window.showInformationMessage(message);
-}
-
-/**
- * Update workspace context for when clauses
- */
-async function updateWorkspaceContext() {
-  const hasNpmFiles = await Utils.hasNpmFiles();
-  vscode.commands.executeCommand('setContext', 'workspaceHasNpmFiles', hasNpmFiles);
+  });
 }
 
 /**
  * Extension deactivation
  */
 export function deactivate() {
-  console.log('Node Module Map extension deactivated');
+  console.log('Node Module Map extension is now deactivated!');
 }

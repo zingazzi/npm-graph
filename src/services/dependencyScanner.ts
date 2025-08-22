@@ -412,6 +412,23 @@ export class DependencyScanner {
 
     // Collect all nodes and process each workspace
     for (const workspace of workspaces) {
+      // Create a root node for this workspace
+      const rootNode: DependencyNode = {
+        id: `root-${path.basename(workspace.root)}`,
+        name: workspace.packageJson.name || path.basename(workspace.root),
+        version: workspace.packageJson.version || '1.0.0',
+        type: 'dependency',
+        status: 'up-to-date',
+        source: workspace.root,
+        depth: 0,
+        size: 25,
+        color: '#4CAF50',
+        metadata: {}
+      };
+
+      // Add root node to all nodes
+      allNodes.push(rootNode);
+
       // Add workspace dependencies to all nodes
       const workspaceNodes = workspace.dependencies.map(dep => ({
         ...dep,
@@ -424,13 +441,13 @@ export class DependencyScanner {
         const workspaceEdges = await this.buildEdgesFromPackageLock(
           workspace.packageLockJson,
           workspace.root,
-          workspaceNodes,
+          [rootNode, ...workspaceNodes],
           options
         );
         allEdges.push(...workspaceEdges);
       } else {
         // Build basic edges from package.json
-        const basicEdges = this.buildBasicEdges(workspace.packageJson, workspace.root, workspaceNodes);
+        const basicEdges = this.buildBasicEdges(workspace.packageJson, workspace.root, [rootNode, ...workspaceNodes]);
         allEdges.push(...basicEdges);
       }
     }

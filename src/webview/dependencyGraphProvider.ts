@@ -17,36 +17,54 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken,
   ) {
+    console.log('DependencyGraphProvider.resolveWebviewView called');
+    console.log('Webview view:', webviewView);
+    console.log('Webview view type:', webviewView.viewType);
+    
     this._view = webviewView;
 
     // Set webview options
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode.Uri.joinPath(this._extensionUri, 'media'),
-        vscode.Uri.joinPath(this._extensionUri, 'out/compiled'),
+        vscode.Uri.joinPath(this._extensionUri, 'out', 'compiled'),
+        vscode.Uri.joinPath(this._extensionUri, 'src', 'webview'),
       ]
     };
 
+    console.log('Webview options set');
+
     // Set the webview's initial html content
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+    console.log('HTML content set');
 
     // Handle messages from the webview
     this._setWebviewMessageListener(webviewView.webview);
 
     // Handle webview visibility changes
     webviewView.onDidDispose(() => this.dispose(), null, this._disposables);
+    
+    console.log('Webview view resolved successfully');
   }
 
   /**
    * Update the webview with new dependency graph data
    */
   public updateGraph(graph: DependencyGraph) {
+    console.log('DependencyGraphProvider.updateGraph called with:', graph);
+    console.log('Nodes count:', graph.nodes.length);
+    console.log('Edges count:', graph.edges.length);
+    
     if (this._view) {
+      console.log('Webview view exists, sending message...');
       this._view.webview.postMessage({
         command: 'updateGraph',
         data: graph
       });
+      console.log('Message sent to webview');
+    } else {
+      console.log('Webview view does not exist yet');
     }
   }
 
@@ -54,7 +72,8 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
    * Get HTML content for the webview
    */
   private _getHtmlForWebview(webview: vscode.Webview): string {
-    const webviewUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'src', 'webview'));
+    const webviewUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'out', 'compiled', 'webview'));
+    const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'src', 'webview'));
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -62,7 +81,8 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Node Module Map - Dependency Graph</title>
-    <link rel="stylesheet" href="${webviewUri}/webview.css">
+    <link rel="stylesheet" href="${cssUri}/webview.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
     <div class="container">

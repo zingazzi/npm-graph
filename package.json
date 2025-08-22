@@ -50,8 +50,7 @@
         {
           "type": "webview",
           "id": "node-module-map.dependencyGraph",
-          "name": "Dependency Graph",
-          "when": "workspaceHasNpmFiles"
+          "name": "Dependency Graph"
         }
       ]
     },

@@ -1,6 +1,14 @@
 // Webview frontend logic for Node Module Map
-import * as d3 from 'd3';
-import './types';
+// D3 is loaded from CDN in the HTML
+
+// Add debugging
+console.log('Webview script loaded');
+console.log('D3 available:', typeof d3 !== 'undefined');
+if (typeof d3 !== 'undefined') {
+  console.log('D3 version:', d3.version);
+} else {
+  console.error('D3 is not available!');
+}
 
 interface DependencyNode {
   id: string;
@@ -52,9 +60,11 @@ interface FilterOptions {
 class DependencyGraphVisualization {
   private container: HTMLElement;
   private svg!: d3.Selection<SVGSVGElement, unknown, null, undefined>;
+  private mainGroup!: d3.Selection<SVGGElement, unknown, null, undefined>;
   private simulation!: d3.Simulation<DependencyNode, DependencyEdge>;
   private nodes!: d3.Selection<SVGGElement, DependencyNode, SVGGElement, unknown>;
   private edges!: d3.Selection<SVGLineElement, DependencyEdge, SVGGElement, unknown>;
+  private zoomBehavior!: d3.ZoomBehavior<SVGSVGElement, unknown>;
   private data: DependencyGraph | null = null;
   private filteredData: DependencyGraph | null = null;
   private filters: FilterOptions = {
@@ -68,10 +78,14 @@ class DependencyGraphVisualization {
 
   constructor(containerId: string) {
     this.container = document.getElementById(containerId)!;
+    console.log('Container found:', this.container);
+    console.log('Container ID:', containerId);
     this.init();
   }
 
   private init() {
+    console.log('Initializing visualization...');
+
     // Create SVG container
     this.svg = d3.select(this.container)
       .append('svg')
@@ -79,19 +93,28 @@ class DependencyGraphVisualization {
       .attr('height', '100%')
       .attr('viewBox', '0 0 800 600');
 
-    // Add zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .on('zoom', (event) => {
-        this.svg.selectAll('g').attr('transform', event.transform);
-      });
-
-    this.svg.call(zoom);
+    console.log('SVG created:', this.svg.node());
 
     // Create main group for all elements
-    this.svg.append('g');
+    const mainGroup = this.svg.append('g').attr('class', 'main-group');
+
+    // Add zoom behavior
+    this.zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 10]) // Limit zoom scale between 0.1x and 10x
+      .on('zoom', (event) => {
+        // Apply zoom transformation only to the main group, not individual elements
+        mainGroup.attr('transform', event.transform);
+      });
+
+    this.svg.call(this.zoomBehavior);
+
+    // Store reference to main group for later use
+    this.mainGroup = mainGroup;
 
     // Initialize event listeners
     this.setupEventListeners();
+
+    console.log('Initialization completed');
   }
 
   private setupEventListeners() {
@@ -110,6 +133,11 @@ class DependencyGraphVisualization {
         this.sendMessage('export');
       });
     }
+
+    // Add double-click to reset zoom
+    this.svg.on('dblclick', () => {
+      this.resetZoom();
+    });
 
     // Search input
     const searchInput = document.getElementById('search-input');
@@ -213,9 +241,28 @@ class DependencyGraphVisualization {
   }
 
   updateData(graph: DependencyGraph) {
+    console.log('Received graph data:', graph);
+    console.log('Nodes count:', graph.nodes.length);
+    console.log('Edges count:', graph.edges.length);
+
     this.data = graph;
     this.applyFilters();
     this.updateStatistics();
+
+    // Show loading state while processing
+    const loadingEl = document.getElementById('loading');
+    const noDataEl = document.getElementById('no-data');
+    const graphEl = document.getElementById('dependency-graph');
+
+    if (loadingEl) loadingEl.style.display = 'none';
+
+    if (graph.nodes.length === 0) {
+      if (noDataEl) noDataEl.style.display = 'block';
+      if (graphEl) graphEl.style.display = 'none';
+    } else {
+      if (noDataEl) noDataEl.style.display = 'none';
+      if (graphEl) graphEl.style.display = 'block';
+    }
   }
 
   private updateStatistics() {
@@ -250,29 +297,53 @@ class DependencyGraphVisualization {
 
   private updateVisualization(graphData?: DependencyGraph) {
     const data = graphData || this.filteredData;
-    if (!data) return;
+    if (!data) {
+      console.log('No data available for visualization');
+      return;
+    }
 
-    // Clear existing elements
-    this.svg.selectAll('*').remove();
+    console.log('Updating visualization with data:', data);
+    console.log('Nodes to visualize:', data.nodes.length);
+    console.log('Edges count:', data.edges.length);
+    console.log('Sample edge data:', data.edges[0]);
+    console.log('Sample node data:', data.nodes[0]);
 
-    // Create main group
-    const g = this.svg.append('g');
+    // Clear existing elements from main group
+    this.mainGroup.selectAll('*').remove();
 
     // Create edges
-    this.edges = g.selectAll('line')
+    this.edges = this.mainGroup.selectAll('line')
       .data(data.edges)
       .enter()
       .append('line')
       .attr('stroke', d => d.color)
       .attr('stroke-width', d => d.width)
-      .attr('opacity', 0.6);
+      .attr('opacity', 0.6)
+      .attr('marker-end', 'url(#arrowhead)'); // Add arrowheads to edges
+
+    // Add arrowhead marker definition
+    this.mainGroup.append('defs').append('marker')
+      .attr('id', 'arrowhead')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 8)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', '#999');
+
+    console.log('Created edges:', this.edges.size());
 
     // Create nodes
-    this.nodes = g.selectAll('g')
+    this.nodes = this.mainGroup.selectAll('g')
       .data(data.nodes)
       .enter()
       .append('g')
       .call(this.drag(this.simulation));
+
+    console.log('Created nodes:', this.nodes.size());
 
     // Add circles to nodes
     this.nodes.append('circle')
@@ -307,21 +378,43 @@ class DependencyGraphVisualization {
 
     // Setup force simulation
     this.simulation = d3.forceSimulation(data.nodes)
-      .force('link', d3.forceLink(data.edges).id((d: any) => d.id).distance(100))
-      .force('charge', d3.forceManyBody().strength(-300))
+      .force('link', d3.forceLink(data.edges).id((d: any) => d.id).distance(150))
+      .force('charge', d3.forceManyBody().strength(-500))
       .force('center', d3.forceCenter(400, 300))
-      .force('collision', d3.forceCollide().radius(d => (d as DependencyNode).size + 5));
+      .force('collision', d3.forceCollide().radius(d => (d as DependencyNode).size + 10))
+      .force('x', d3.forceX(400).strength(0.1))
+      .force('y', d3.forceY(300).strength(0.1))
+      .alphaDecay(0.02) // Slower decay for more stable layout
+      .velocityDecay(0.4) // More damping to prevent oscillation
+      .on('end', () => {
+        // Stabilize layout after simulation ends
+        this.stabilizeLayout();
+      });
+
+    console.log('Force simulation created');
 
     // Update positions on tick
     this.simulation.on('tick', () => {
       this.edges
-        .attr('x1', d => (d.source as any).x)
-        .attr('y1', d => (d.source as any).y)
-        .attr('x2', d => (d.target as any).x)
-        .attr('y2', d => (d.target as any).y);
+        .attr('x1', d => {
+          const source = typeof d.source === 'string' ? data.nodes.find(n => n.id === d.source) : d.source;
+          return source ? source.x || 0 : 0;
+        })
+        .attr('y1', d => {
+          const source = typeof d.source === 'string' ? data.nodes.find(n => n.id === d.source) : d.source;
+          return source ? source.y || 0 : 0;
+        })
+        .attr('x2', d => {
+          const target = typeof d.target === 'string' ? data.nodes.find(n => n.id === d.target) : d.target;
+          return target ? target.x || 0 : 0;
+        })
+        .attr('y2', d => {
+          const target = typeof d.target === 'string' ? data.nodes.find(n => n.id === d.target) : d.target;
+          return target ? target.y || 0 : 0;
+        });
 
       this.nodes
-        .attr('transform', d => `translate(${d.x},${d.y})`);
+        .attr('transform', d => `translate(${d.x || 0},${d.y || 0})`);
     });
 
     // Add hover effects
@@ -333,21 +426,29 @@ class DependencyGraphVisualization {
     // Add click events for edges
     this.edges
       .on('click', (event, d) => this.selectEdge(d));
+
+    console.log('Visualization update completed');
   }
 
   private drag(simulation: d3.Simulation<DependencyNode, DependencyEdge>) {
     return d3.drag<SVGGElement, DependencyNode>()
       .on('start', (event, d) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
-        (d as any).fx = (d as any).x;
-        (d as any).fy = (d as any).y;
+        // Don't fix position immediately, let the simulation handle it
+        (d as any).fx = null;
+        (d as any).fy = null;
       })
       .on('drag', (event, d) => {
-        (d as any).fx = event.x;
-        (d as any).fy = event.y;
+        // Update node position during drag
+        (d as any).x = event.x;
+        (d as any).y = event.y;
+        // Don't fix position to allow natural movement
+        (d as any).fx = null;
+        (d as any).fy = null;
       })
       .on('end', (event, d) => {
         if (!event.active) simulation.alphaTarget(0);
+        // Release the node to let it move naturally
         (d as any).fx = null;
         (d as any).fy = null;
       });
@@ -414,27 +515,50 @@ class DependencyGraphVisualization {
   }
 
   private sendMessage(command: string, data?: any) {
-    if (window.vscode) {
-      window.vscode.postMessage({
+    if ((window as any).vscode) {
+      (window as any).vscode.postMessage({
         command,
         data
       });
     }
   }
+
+  private resetZoom() {
+    this.svg.transition()
+      .duration(750)
+      .call(this.zoomBehavior.transform, d3.zoomIdentity);
+  }
+
+  private stabilizeLayout() {
+    // This method is called after the simulation ends to ensure nodes are positioned
+    // correctly after a zoom operation. It can be used to re-center or re-position
+    // nodes if the simulation's force center or collision forces are not sufficient.
+    // For now, we'll just re-center the viewBox.
+    this.svg.attr('viewBox', '0 0 800 600');
+  }
 }
 
 // Initialize visualization when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM loaded, initializing visualization...');
+
   const visualization = new DependencyGraphVisualization('dependency-graph');
 
   // Listen for messages from the extension
   window.addEventListener('message', event => {
+    console.log('Received message from extension:', event.data);
+
     const message = event.data;
 
     switch (message.command) {
       case 'updateGraph':
+        console.log('Updating graph with data:', message.data);
         visualization.updateData(message.data);
         break;
+      default:
+        console.log('Unknown message command:', message.command);
     }
   });
+
+  console.log('Message listener set up');
 });

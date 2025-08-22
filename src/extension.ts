@@ -76,13 +76,22 @@ async function showDependencyGraphCommand(webviewProvider: DependencyGraphProvid
         enableVersionChecking: true
       });
 
+      console.log('Dependency scan completed. Graph data:', graph);
+      console.log('Nodes count:', graph.nodes.length);
+      console.log('Edges count:', graph.edges.length);
+      console.log('Sample nodes:', graph.nodes.slice(0, 3));
+      console.log('Sample edges:', graph.edges.slice(0, 3));
+
       progress.report({ message: 'Updating visualization...' });
 
       // Update the webview with the graph data
       webviewProvider.updateGraph(graph);
 
-      // Show the dependency graph view
+      // Show the dependency graph view container first
       await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap');
+
+      // Focus on the webview
+      await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap.dependencyGraph');
 
       vscode.window.showInformationMessage(
         `Dependency graph generated: ${graph.nodes.length} packages, ${graph.edges.length} dependencies`

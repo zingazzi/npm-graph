@@ -68,7 +68,7 @@ class DependencyGraphVisualization {
   private data: DependencyGraph | null = null;
   private filteredData: DependencyGraph | null = null;
   private filters: FilterOptions = {
-    maxDepth: 3,
+    maxDepth: 0, // Start with depth 0 (only direct dependencies)
     showDevDependencies: true,
     showPeerDependencies: true,
     showOptionalDependencies: true,
@@ -156,6 +156,7 @@ class DependencyGraphVisualization {
         this.filters.maxDepth = parseInt(target.value);
         this.updateDepthLabel();
         this.applyFilters();
+        this.sendMessage('updateDepth', { maxDepth: this.filters.maxDepth });
       });
     }
 
@@ -168,6 +169,7 @@ class DependencyGraphVisualization {
         if (filterName in this.filters) {
           (this.filters as any)[filterName] = target.checked;
           this.applyFilters();
+          this.sendMessage('updateFilters', this.filters);
         }
       });
     });

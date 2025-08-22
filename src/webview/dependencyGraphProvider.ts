@@ -20,7 +20,7 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
     console.log('DependencyGraphProvider.resolveWebviewView called');
     console.log('Webview view:', webviewView);
     console.log('Webview view type:', webviewView.viewType);
-    
+
     this._view = webviewView;
 
     // Set webview options
@@ -44,7 +44,7 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
 
     // Handle webview visibility changes
     webviewView.onDidDispose(() => this.dispose(), null, this._disposables);
-    
+
     console.log('Webview view resolved successfully');
   }
 
@@ -55,16 +55,22 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
     console.log('DependencyGraphProvider.updateGraph called with:', graph);
     console.log('Nodes count:', graph.nodes.length);
     console.log('Edges count:', graph.edges.length);
-    
+
     if (this._view) {
       console.log('Webview view exists, sending message...');
-      this._view.webview.postMessage({
-        command: 'updateGraph',
-        data: graph
-      });
-      console.log('Message sent to webview');
+      try {
+        this._view.webview.postMessage({
+          command: 'updateGraph',
+          data: graph
+        });
+        console.log('Message sent to webview successfully');
+      } catch (error) {
+        console.error('Error sending message to webview:', error);
+        throw error; // Re-throw to be caught by the extension
+      }
     } else {
       console.log('Webview view does not exist yet');
+      throw new Error('Webview view not available');
     }
   }
 
@@ -90,11 +96,11 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
             <h1>Node Module Map</h1>
             <div class="header-controls">
                 <button id="refresh-btn" class="btn btn-primary">
-                    <span class="icon">$(refresh)</span>
+                    <span class="icon">🔄</span>
                     Refresh
                 </button>
                 <button id="export-btn" class="btn btn-secondary">
-                    <span class="icon">$(export)</span>
+                    <span class="icon">📤</span>
                     Export
                 </button>
             </div>
@@ -104,8 +110,8 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
             <div class="control-group">
                 <label for="depth-slider">Dependency Depth:</label>
                 <div class="depth-control">
-                    <input type="range" id="depth-slider" min="1" max="5" value="3" class="depth-slider">
-                    <span id="depth-label" class="depth-label">Depth: 3</span>
+                    <input type="range" id="depth-slider" min="0" max="5" value="0" class="depth-slider">
+                    <span id="depth-label" class="depth-label">Depth: 0</span>
                 </div>
             </div>
 
@@ -191,28 +197,32 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
                     <h3>Legend</h3>
                     <div class="legend">
                         <div class="legend-item">
-                            <span class="legend-color" style="background-color: #4CAF50;"></span>
+                            <span class="legend-color" style="background-color: #4CAF50; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
                             <span>Up to Date</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color" style="background-color: #FF9800;"></span>
+                            <span class="legend-color" style="background-color: #FF9800; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
                             <span>Outdated</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color" style="background-color: #F44336;"></span>
-                            <span>Conflict</span>
+                            <span class="legend-color" style="background-color: #F44336; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
+                            <span>Version Conflict</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color" style="background-color: #9C27B0;"></span>
+                            <span class="legend-color" style="background-color: #9C27B0; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
                             <span>Vulnerable</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color" style="background-color: #2196F3;"></span>
+                            <span class="legend-color" style="background-color: #2196F3; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
                             <span>Dev Dependency</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color" style="background-color: #FF5722;"></span>
+                            <span class="legend-color" style="background-color: #FF5722; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
                             <span>Peer Dependency</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #607D8B; width: 20px; height: 20px; display: inline-block; border-radius: 50%; margin-right: 8px;"></span>
+                            <span>Optional Dependency</span>
                         </div>
                     </div>
                 </div>
@@ -249,6 +259,12 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
             break;
           case 'export':
             this._handleExport();
+            break;
+          case 'updateDepth':
+            this._handleDepthUpdate(message.data);
+            break;
+          case 'updateFilters':
+            this._handleFilterUpdate(message.data);
             break;
           case 'packageSelected':
             this._handlePackageSelection(message.data);
@@ -297,6 +313,23 @@ export class DependencyGraphProvider implements vscode.WebviewViewProvider {
   private _handleFilterChange(filterData: unknown) {
     console.log('Filter changed:', filterData);
     // This will update the graph visualization based on filters
+  }
+
+  /**
+   * Handle depth updates from webview
+   */
+  private _handleDepthUpdate(depthData: { maxDepth: number }) {
+    console.log('Depth updated:', depthData);
+    // Trigger a new dependency scan with the new depth
+    vscode.commands.executeCommand('node-module-map.showDependencyGraph', depthData.maxDepth);
+  }
+
+  /**
+   * Handle filter updates from webview
+   */
+  private _handleFilterUpdate(filterData: unknown) {
+    console.log('Filters updated:', filterData);
+    // This will update the graph visualization based on new filters
   }
 
   /**

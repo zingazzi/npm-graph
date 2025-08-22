@@ -26,9 +26,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Register commands
   const showDependencyGraph = vscode.commands.registerCommand(
     'node-module-map.showDependencyGraph',
-    async () => {
+    async (depth?: number) => {
       try {
-        await showDependencyGraphCommand(dependencyGraphProvider);
+        await showDependencyGraphCommand(dependencyGraphProvider, depth);
       } catch (error) {
         console.error('Error showing dependency graph:', error);
         vscode.window.showErrorMessage('Failed to show dependency graph. See console for details.');
@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
 /**
  * Show dependency graph command implementation
  */
-async function showDependencyGraphCommand(webviewProvider: DependencyGraphProvider) {
+async function showDependencyGraphCommand(webviewProvider: DependencyGraphProvider, depth?: number) {
   const progressOptions = {
     location: vscode.ProgressLocation.Notification,
     title: 'Analyzing dependencies...',
@@ -69,7 +69,7 @@ async function showDependencyGraphCommand(webviewProvider: DependencyGraphProvid
 
       // Scan with default options (can be enhanced with user preferences later)
       const graph = await scanner.scanWorkspace({
-        maxDepth: 3,
+        maxDepth: depth || 3,
         includeDevDependencies: true,
         includePeerDependencies: true,
         includeOptionalDependencies: true,
@@ -84,18 +84,41 @@ async function showDependencyGraphCommand(webviewProvider: DependencyGraphProvid
 
       progress.report({ message: 'Updating visualization...' });
 
+      console.log('About to update webview with graph data...');
+
       // Update the webview with the graph data
       webviewProvider.updateGraph(graph);
 
-      // Show the dependency graph view container first
-      await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap');
+      console.log('Webview updated successfully, now trying to show views...');
 
-      // Focus on the webview
-      await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap.dependencyGraph');
+      try {
+        // Show the dependency graph view container first
+        console.log('Executing workbench.view.extension.nodeModuleMap...');
+        await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap');
+        console.log('View container command executed successfully');
 
-      vscode.window.showInformationMessage(
-        `Dependency graph generated: ${graph.nodes.length} packages, ${graph.edges.length} dependencies`
-      );
+        // Focus on the webview (this might fail, so we handle it gracefully)
+        try {
+          console.log('Executing workbench.view.extension.nodeModuleMap.dependencyGraph...');
+          await vscode.commands.executeCommand('workbench.view.extension.nodeModuleMap.dependencyGraph');
+          console.log('Webview focus command executed successfully');
+        } catch (viewError) {
+          console.log('Could not focus on specific webview, but this is not critical:', viewError);
+          // This is not a critical error, just continue
+        }
+
+        console.log('Showing success message...');
+        vscode.window.showInformationMessage(
+          `Dependency graph generated: ${graph.nodes.length} packages, ${graph.edges.length} dependencies`
+        );
+        console.log('Success message shown');
+      } catch (viewError) {
+        console.log('View command error (non-critical):', viewError);
+        // Show success message even if view commands fail
+        vscode.window.showInformationMessage(
+          `Dependency graph generated: ${graph.nodes.length} packages, ${graph.edges.length} dependencies`
+        );
+      }
 
     } catch (error) {
       console.error('Error scanning dependencies:', error);

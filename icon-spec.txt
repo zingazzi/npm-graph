@@ -1,0 +1,66 @@
+ICON SPECIFICATION FOR NODE MODULE MAP EXTENSION
+
+Since VS Code extensions require PNG icons, here's the specification for creating the icon:
+
+DIMENSIONS: 128x128 pixels
+FORMAT: PNG with transparency support
+BACKGROUND: Transparent or very dark (#1A202C)
+
+DESIGN ELEMENTS:
+
+1. CENTRAL NODE (Main Package)
+   - Position: Center (64, 64)
+   - Size: 20x20 pixels
+   - Color: Blue (#4299E1)
+   - Border: Dark blue (#2B6CB0), 2px
+
+2. DEPENDENCY NODES (4 corners)
+   - Top-left (32, 32): Green (#48BB78) - Production deps
+   - Top-right (96, 32): Orange (#F6AD55) - Dev deps
+   - Bottom-left (32, 96): Pink (#F687B3) - Peer deps
+   - Bottom-right (96, 96): Purple (#9F7AEA) - Optional deps
+   - Size: 16x16 pixels each
+   - Border: Darker version of each color, 1px
+
+3. CONNECTION LINES
+   - From center to each corner node
+   - Color: Light gray (#E2E8F0)
+   - Width: 3px
+   - Style: Straight lines with rounded caps
+
+4. SECONDARY CONNECTIONS
+   - Between corner nodes (horizontal lines)
+   - Color: Medium gray (#CBD5E0)
+   - Width: 2px
+   - Opacity: 0.8
+
+5. DECORATIVE ELEMENTS
+   - Small white dots at (48,48), (80,48), (48,80), (80,80)
+   - Size: 3x3 pixels
+   - Color: White (#FFFFFF) with 0.9 opacity
+
+COLOR PALETTE:
+- Background: #1A202C (very dark)
+- Central node: #4299E1 (blue)
+- Production deps: #48BB78 (green)
+- Dev deps: #F6AD55 (orange)
+- Peer deps: #F687B3 (pink)
+- Optional deps: #9F7AEA (purple)
+- Connections: #E2E8F0 (light gray)
+- Secondary: #CBD5E0 (medium gray)
+
+TOOLS TO CREATE:
+- Figma (free online)
+- Adobe Illustrator
+- Inkscape (free)
+- GIMP (free)
+- Or any image editor that supports PNG
+
+EXPORT SETTINGS:
+- Format: PNG
+- Size: 128x128 pixels
+- Background: Transparent
+- Anti-aliasing: Enabled
+- Quality: High
+
+This will create a professional-looking icon that represents dependency relationships clearly and works well in both light and dark VS Code themes.

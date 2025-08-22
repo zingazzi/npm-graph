@@ -1,0 +1,32 @@
+SIMPLE ICON PLACEHOLDER (ASCII ART)
+
+For now, you can use any simple icon. Here's a quick way to create one:
+
+1. Use a simple geometric design:
+   - Circle in center
+   - 4 smaller circles in corners
+   - Lines connecting center to corners
+
+2. Or use a simple text-based icon:
+   - "NPM" in a circle
+   - "📦" emoji
+   - "🔗" emoji (for dependencies)
+
+3. Quick online tools:
+   - favicon.io (creates icons from text/emoji)
+   - canva.com (free icon creation)
+   - flaticon.com (free icon downloads)
+
+4. Simple design elements:
+   - Background: Dark blue or transparent
+   - Foreground: White or light colors
+   - Keep it simple and recognizable at small sizes
+
+The icon should be:
+- 128x128 pixels
+- PNG format
+- Clear and recognizable
+- Professional looking
+- Work in both light and dark themes
+
+Once you have the PNG icon, place it in the root directory as "icon.png" and the extension will use it.

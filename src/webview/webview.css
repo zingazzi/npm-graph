@@ -57,19 +57,23 @@ body {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 8px 16px;
   border: 1px solid var(--vscode-border);
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: var(--vscode-button-bg);
   color: var(--vscode-button-fg);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   transition: all 0.2s ease;
+  min-height: 36px;
 }
 
 .btn:hover {
   background-color: var(--vscode-button-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .btn-primary {
@@ -82,7 +86,8 @@ body {
 }
 
 .btn .icon {
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* Controls Panel */
@@ -301,22 +306,32 @@ body {
 .legend {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  padding: 8px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 12px;
+  font-size: 13px;
   color: var(--vscode-fg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.legend-item:hover {
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 .legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  border: 1px solid var(--vscode-border);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--vscode-border);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .package-info {
